@@ -1,0 +1,146 @@
+// Required Libraries
+import React, { useEffect, useState } from "react";
+import axios from "axios";
+import { useSearchParams } from "react-router-dom";
+
+const DoctorList = () => {
+  const [doctors, setDoctors] = useState([]);
+  const [filteredDoctors, setFilteredDoctors] = useState([]);
+  const [searchInput, setSearchInput] = useState("");
+  const [suggestions, setSuggestions] = useState([]);
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  const specialties = [
+    "General Physician", "Dentist", "Dermatologist", "Paediatrician",
+    "Gynaecologist", "ENT", "Diabetologist", "Cardiologist",
+    "Physiotherapist", "Endocrinologist", "Orthopaedic", "Ophthalmologist",
+    "Gastroenterologist", "Pulmonologist", "Psychiatrist", "Urologist",
+    "Dietitian/Nutritionist", "Psychologist", "Sexologist", "Nephrologist",
+    "Neurologist", "Oncologist", "Ayurveda", "Homeopath"
+  ];
+
+  useEffect(() => {
+    axios.get("https://srijandubey.github.io/campus-api-mock/SRM-C1-25.json")
+      .then(res => {
+        setDoctors(res.data);
+        applyFilters(res.data);
+      });
+  }, []);
+
+  useEffect(() => {
+    applyFilters(doctors);
+  }, [searchParams]);
+
+  const applyFilters = (doctors) => {
+    let filtered = [...doctors];
+    const name = searchParams.get("name")?.toLowerCase() || "";
+    const mode = searchParams.get("mode") || "";
+    const specs = searchParams.getAll("specialty");
+    const sort = searchParams.get("sort");
+
+    if (name) {
+      filtered = filtered.filter(d => d.name.toLowerCase().includes(name));
+    }
+
+    if (mode) {
+      filtered = filtered.filter(d => d.mode === mode);
+    }
+
+    if (specs.length > 0) {
+      filtered = filtered.filter(d => specs.some(s => d.specialties.includes(s)));
+    }
+
+    if (sort === "fees") {
+      filtered.sort((a, b) => a.fees - b.fees);
+    } else if (sort === "experience") {
+      filtered.sort((a, b) => b.experience - a.experience);
+    }
+
+    setFilteredDoctors(filtered);
+  };
+
+  const handleSearchInput = (e) => {
+    const value = e.target.value;
+    setSearchInput(value);
+    if (value.trim() === "") {
+      setSuggestions([]);
+      return;
+    }
+    const matches = doctors.filter(d => d.name.toLowerCase().includes(value.toLowerCase())).slice(0, 3);
+    setSuggestions(matches);
+  };
+
+  const updateQueryParam = (key, value, isMulti = false) => {
+    const newParams = new URLSearchParams(searchParams);
+    if (isMulti) {
+      if (newParams.getAll(key).includes(value)) {
+        const updated = newParams.getAll(key).filter(v => v !== value);
+        newParams.delete(key);
+        updated.forEach(v => newParams.append(key, v));
+      } else {
+        newParams.append(key, value);
+      }
+    } else {
+      newParams.set(key, value);
+    }
+    setSearchParams(newParams);
+  };
+
+  return (
+    <div>
+      <input
+        type="text"
+        placeholder="Search doctors"
+        data-testid="autocomplete-input"
+        value={searchInput}
+        onChange={handleSearchInput}
+        onKeyDown={e => e.key === "Enter" && updateQueryParam("name", searchInput)}
+      />
+      {suggestions.map((s, index) => (
+        <div
+          key={index}
+          data-testid="suggestion-item"
+          onClick={() => updateQueryParam("name", s.name)}
+        >
+          {s.name}
+        </div>
+      ))}
+
+      <h4 data-testid="filter-header-moc">Consultation Mode</h4>
+      <div>
+        <input type="radio" name="mode" data-testid="filter-video-consult" onChange={() => updateQueryParam("mode", "Video Consult")} /> Video Consult<br />
+        <input type="radio" name="mode" data-testid="filter-in-clinic" onChange={() => updateQueryParam("mode", "In Clinic")} /> In Clinic
+      </div>
+
+      <h4 data-testid="filter-header-speciality">Speciality</h4>
+      {specialties.map(spec => (
+        <div key={spec}>
+          <input
+            type="checkbox"
+            data-testid={`filter-specialty-${spec.replace(/\s|\//g, "-")}`}
+            onChange={() => updateQueryParam("specialty", spec, true)}
+          /> {spec}
+        </div>
+      ))}
+
+      <h4 data-testid="filter-header-sort">Sort</h4>
+      <div>
+        <input type="radio" name="sort" data-testid="sort-fees" onChange={() => updateQueryParam("sort", "fees")} /> Fees (Low to High)<br />
+        <input type="radio" name="sort" data-testid="sort-experience" onChange={() => updateQueryParam("sort", "experience")} /> Experience (High to Low)
+      </div>
+
+      <div>
+        {filteredDoctors.map((doc, index) => (
+          <div key={index} data-testid="doctor-card">
+            <h3 data-testid="doctor-name">{doc.name}</h3>
+            <p data-testid="doctor-specialty">{doc.specialties.join(", ")}</p>
+            <p data-testid="doctor-experience">{doc.experience} years experience</p>
+            <p data-testid="doctor-fee">Fee: ₹{doc.fees}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+export default DoctorList;
